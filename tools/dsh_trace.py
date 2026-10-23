@@ -129,12 +129,31 @@ def find_session(sid: str, root: Path):
     hits = list(root.glob(f"*/{sid}/session.v4.jsonl.zstd"))
     if not hits:
         hits = list(root.glob(f"*/session-{sid}*/session.v4.jsonl.zstd"))
+    if not hits:
+        # 本机会话根可能多一层工作区目录：sessions/<工作区>/<sid>/session.v4.jsonl.zstd
+        hits = list(root.glob(f"*/*/{sid}/session.v4.jsonl.zstd"))
+    if not hits:
+        hits = list(root.glob(f"*/*/session-{sid}*/session.v4.jsonl.zstd"))
     return hits[0] if hits else None
 
 
 def list_sessions(root: Path):
-    out = [(fp.parent.name, fp) for fp in root.glob("*/session.v4.jsonl.zstd")]
-    out.sort(key=lambda x: x[1].stat().st_mtime, reverse=True)
+    """列出全部会话。
+
+    ⚠ 2026-10-23 修：原实现只 glob `*/session.v4.jsonl.zstd`，而本机会话根是
+    `sessions/<工作区目录>/<sid>/session.v4.jsonl.zstd` —— **多一层**，
+    于是 `--list` 恒返空（子 agent 实测 0 命中，只能自己写扫描器替代）。
+    这里改成**两层都收**（`*/` 与 `*/*/`），并对同 sid 去重。
+    """
+    pats = ("*/session.v4.jsonl.zstd", "*/*/session.v4.jsonl.zstd")
+    seen: dict[str, Path] = {}
+    for pat in pats:
+        for fp in root.glob(pat):
+            sid = fp.parent.name
+            # 同一 sid 若两种深度都命中，保留 mtime 较新的那份
+            if sid not in seen or fp.stat().st_mtime > seen[sid].stat().st_mtime:
+                seen[sid] = fp
+    out = sorted(seen.items(), key=lambda kv: kv[1].stat().st_mtime, reverse=True)
     return out
 
 
