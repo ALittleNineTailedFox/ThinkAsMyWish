@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""method_check —— 拿方法论条文反压素材：哪些条款是被实测支撑的？
+"""method_check —— 拿证据层条文反压素材：哪些主张是被实测支撑的？
 
 用法：
-  python tools/method_check.py --trace <trace目录> [--name <显示名>]
+  python tools/method_check.py --trace <trace目录> [--trace <另一个>]
 
-做的事：把 METHOD.md 里每条量化主张，重新从 trace.jsonl 算一遍，并给出
+做的事：把 docs/实证.md 里每条量化主张，重新从 trace.jsonl 算一遍，并给出
   ✓ 与条文一致 / ✗ 与条文不符 / ? 无法从素材判定。
-**这是防止方法论腐烂的最小手段**：条文里的数字必须能随时重算出来。
+**这是防止条文腐烂的最小手段**：文档里的数字必须能随时重算出来。
+（数字 2026-10-14 起全部在 docs/实证.md；METHOD.md 只讲方法、不含数据。）
+
+**这是仓外校验**：由改文档的人或 CI 跑，产物不回灌任何 AI 的上下文，
+因此不属于 METHOD.md §4.10 禁的"加在 AI 必读与动作上的门禁"。
 """
 from __future__ import annotations
 
@@ -103,7 +107,7 @@ def recompute(ev, man):
     return res
 
 
-# METHOD.md 里的量化主张（条文原文片段 → 从素材重算得到什么）
+# docs/实证.md 里的量化主张（条文原文片段 -> 从素材重算得到什么）
 CLAIMS = [
     ("真人输入占素材的比例", "真人占比%"),
     ("AI 思考占上下文的比例", None),  # 需按 kind 分，单独算
@@ -159,7 +163,7 @@ def main():
                   f"；实测字符/token {mt.get('empirical_chars_per_token')}"
                   f"；峰值窗口占用 {lc.get('peak_window_usage')}")
             print(f"- 抽取器自报：思考块 {mt['reasoning_blocks']}；真人占比 {mt['human_share']}")
-    print("\n> ✓ 一致 / ✗ 不符：上面每一格都应能在 METHOD.md 里找到对应数字。找不到 ⇒ 该条主张没有素材支撑，应删。")
+    print("\n> ✓ 一致 / ✗ 不符：上面每一格都应能在 docs/实证.md 里找到对应数字。找不到 ⇒ 该条主张没有素材支撑，应删。")
 
 
 if __name__ == "__main__":

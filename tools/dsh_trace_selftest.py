@@ -38,14 +38,20 @@ def sha(p: Path):
 
 
 def pick_session(sroot: Path, want_root=True):
-    """找一个会话：want_root=True 取 delegationDepth==0 且有子 agent 的。"""
+    """找一个会话：want_root=True 取 delegationDepth==0 且有子 agent 的。
+
+    会话根下**多一层工作区目录**（`<root>/<工作区>/<会话>/session.v4.jsonl.zstd`），
+    两种布局都要扫——只扫一层会恒返 None（2026-10-23 已在 dsh_trace.py 修过同一个坑）。
+    """
     import io
     import json as _j
     import zstandard
     d = zstandard.ZstdDecompressor()
     best = None
-    for fp in sorted(sroot.glob("*/session.v4.jsonl.zstd"),
-                     key=lambda p: p.stat().st_mtime, reverse=True):
+    cands = sorted(set(sroot.glob("*/session.v4.jsonl.zstd"))
+                   | set(sroot.glob("*/*/session.v4.jsonl.zstd")),
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    for fp in cands:
         raw = fp.read_bytes()
         try:
             with d.stream_reader(io.BytesIO(raw)) as r:
@@ -58,8 +64,13 @@ def pick_session(sroot: Path, want_root=True):
             continue
         if not want_root and depth == 0:
             continue
-        # 有子 agent 的优先
-        txt = d.decompress(raw).decode("utf-8", "replace")
+        # 有子 agent 的优先（会话文件是流式帧，头里没有原始大小 ⇒ 必须用 stream_reader，
+        # 不能用 decompress()：后者对这类帧直接抛 "could not determine content size"）
+        try:
+            with d.stream_reader(io.BytesIO(raw)) as r:
+                txt = r.read().decode("utf-8", "replace")
+        except Exception:
+            continue
         has_kids = '"subagent/catalog"' in txt
         if want_root and has_kids:
             return fp.parent.name
@@ -87,6 +98,10 @@ def main():
     results = []
 
     root_sid = args.session or pick_session(sroot, True)
+    if not root_sid:
+        print(f"✗ 在 {sroot} 下找不到可用会话（布局应为 <root>/<工作区>/<会话>/session.v4.jsonl.zstd）。\n"
+              f"  用 --sessions-root 指对，或用 --session 显式指定一个会话 id。", file=sys.stderr)
+        return 2
     child_sid = args.child or pick_session(sroot, False)
     ledger = str(Path.home() / ".dsh" / ".dshw-usage.json")
 
@@ -151,4 +166,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)
